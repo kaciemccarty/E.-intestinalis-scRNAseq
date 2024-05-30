@@ -1,0 +1,314 @@
+#Processing strategies: we will separate E. intestinalis transcripts from each donor.Then normalize the reads prior to integration of 4 donors
+
+#Load necessary libraries
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(cowplot)
+
+#Donor 1:
+raw.data <- Read10X(data.dir="/gpfs/data/bhabhaekiertlabs/home/jaroep01/MichaelPJ/scRNA-seq/mapping_v3/Macrophages_Ei_v3/outs/filtered_feature_bc_matrix")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features, 10,100 cells
+raw.HTO.count <- raw.data$`Antibody Capture` #4 features, 10,100 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs] 
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+row.names(raw.HTO.count) <- c('ctrl','1dpi','2dpi','3dpi')
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+
+#separate E. intestinalis transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor1.microsporidian <- subset(gene.hashtag[36602:38612,])
+rownames(Donor1.microsporidian)
+Donor1.microsporidian <- NormalizeData(Donor1.microsporidian, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor1.microsporidian <- FindVariableFeatures(Donor1.microsporidian, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor1.microsporidian)
+Donor1.microsporidian <- ScaleData(Donor1.microsporidian, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor1.microsporidian[["HTO"]] <- CreateAssayObject(counts=raw.HTO.count)
+Donor1.microsporidian <- MULTIseqDemux(Donor1.microsporidian, assay = "HTO")
+table(Donor1.microsporidian$MULTI_ID)
+#1dpi     2dpi     3dpi     ctrl  Doublet Negative 
+#1559     1631     2136     2870      878     1026 
+Donor1.microsporidian <- subset(Donor1.microsporidian, idents = c("ctrl","1dpi","2dpi","3dpi"))
+dim(Donor1.microsporidian) #8,196 cells
+
+VlnPlot(Donor1.microsporidian, features = c("nCount_RNA","nFeature_RNA","percent.mt","percent.microsporidia"))
+
+infected_cell_barcodes_and_clusters_D1 <- subset(infected_cell_barcodes_and_clusters_updated, subset = infected_cell_barcodes_and_clusters_updated$Exp == 'Donor1' & infected_cell_barcodes_and_clusters_updated$percent.microsporidia > 2)
+dim(_infected_cell_barcodes_and_clusters_D1)
+#1295 cells
+
+infected_cell_barcodes_and_clusters_D2 <- subset(infected_cell_barcodes_and_clusters_updated, subset = infected_cell_barcodes_and_clusters_updated$Exp == 'Donor2' & infected_cell_barcodes_and_clusters_updated$percent.microsporidia > 2)
+dim(infected_cell_barcodes_and_clusters_D2)
+#1108
+
+infected_cell_barcodes_and_clusters_D3 <- subset(infected_cell_barcodes_and_clusters_updated, subset = infected_cell_barcodes_and_clusters_updated$Exp == 'Donor3' & infected_cell_barcodes_and_clusters_updated$percent.microsporidia > 2)
+dim(infected_cell_barcodes_and_clusters_D3)
+#1925
+
+infected_cell_barcodes_and_clusters_D4 <- subset(infected_cell_barcodes_and_clusters_updated, subset = infected_cell_barcodes_and_clusters_updated$Exp == 'Donor4' & infected_cell_barcodes_and_clusters_updated$percent.microsporidia > 2)
+dim(infected_cell_barcodes_and_clusters_D4)
+#2580
+
+Donor1.microsporidia_infected <- subset(Donor1.microsporidian@meta.data, subset = Donor1.microsporidian@meta.data$percent.microsporidia > 2)
+
+cell.use <- nfected_cell_barcodes_and_clusters_D1$...1
+Donor1.microsporidian <- subset(Donor1.microsporidian, cells = cell.use)
+dim(Donor1.microsporidian)
+#1295 cells, 2011 features 
+
+clusters_D1 <- infected_cell_barcodes_and_clusters_D1$integrated_snn_res.0.2
+Donor1.microsporidian <- AddMetaData(Donor1.microsporidian, metadata = clusters_D1, col.name = "human_clusters")
+
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+
+#Donor 2
+raw.data <- Read10X(data.dir = "/gpfs/data/bhabhaekiertlabs/home/jaroep01/MichaelPJ/scRNA-seq/Macrophage-Ei-rep2/processing/Macrophage-Ei-rep2/outs/filtered_feature_bc_matrix")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features and 12,279 cells
+raw.HTO.count <- raw.data$`Antibody Capture`  #4 features and 12,279 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs]
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+row.names(raw.HTO.count) <- c("ctrl","3hpi","12hpi","1dpi")
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+
+#separate E. intestinalis transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor2.microsporidian <- subset(gene.hashtag[36602:38612,])
+rownames(Donor2.microsporidian)
+Donor2.microsporidian <- NormalizeData(Donor2.microsporidian, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor2.microsporidian <- FindVariableFeatures(Donor2.microsporidian, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor2.microsporidian)
+Donor2.microsporidian <- ScaleData(Donor2.microsporidian, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor2.microsporidian[["HTO"]] <- CreateAssayObject(counts = raw.HTO.count)
+Donor2.microsporidian <- MULTIseqDemux(Donor2.microsporidian, assay = "HTO")
+table(Donor2.microsporidian$MULTI_ID)
+#12hpi     1dpi     3hpi     ctrl  Doublet Negative 
+#3483     3219     3434      415      628     1100
+remove(gene.hashtag)
+Donor2.microsporidian <- subset(Donor2.microsporidian, idents = c("ctrl","3hpi","12hpi","1dpi"))
+dim(Donor2.microsporidian) #10,551 cells
+
+#Subset only infected cells that contain more than 2% of microsporidian transcripts from human transcripts only
+#By doing this, we don't have to perform filtering out
+cell.use <- infected_cell_barcodes_and_clusters_D2$...1
+Donor2.microsporidian <- subset(Donor2.microsporidian, cells = cell.use)
+dim(Donor2.microsporidian)
+#1,108 cells and 2011 features
+
+#Add human clusters
+view(Donor2.microsporidian)
+clusters_D2 <- infected_cell_barcodes_and_clusters_D2$integrated_snn_res.0.2
+Donor2.microsporidian <- AddMetaData(Donor2.microsporidian, metadata = clusters_D2, col.name = "human_clusters")
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+
+#Donor3 and Donor4
+raw.data <- Read10X(data.dir="/gpfs/data/bhabhaekiertlabs/home/jaroep01/MichaelPJ/scRNA-seq/GTC-PJ-6725/processing/GTC-PJ-6725/outs/filtered_feature_bc_matrix")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features and 30,355 cells
+raw.HTO.count <- raw.data$`Antibody Capture`  #6 features and 30,355 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs]
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+rownames(raw.HTO.count) <- c("D3_ctrl","D3_1dpi","D3_2dpi","D4_ctrl","D4_1dpi","D4_2dpi")
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+
+#separate E. intestinalis transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor3_4.microsporidian <- subset(gene.hashtag[36602:38612,])
+rownames(Donor3_4.microsporidian)
+Donor3_4.microsporidian <- NormalizeData(Donor3_4.microsporidian, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor3_4.microsporidian <- FindVariableFeatures(Donor3_4.microsporidian, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor3_4.microsporidian)
+Donor3_4.microsporidian <- ScaleData(Donor3_4.microsporidian, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor3_4.microsporidian[["HTO"]] <- CreateAssayObject(counts = raw.HTO.count)
+Donor3_4.microsporidian <- MULTIseqDemux(Donor3_4.microsporidian, assay = "HTO")
+table(Donor3_4.microsporidian$MULTI_ID)
+#D3-1dpi  D3-2dpi  D3-ctrl  D4-1dpi  D4-2dpi  D4-ctrl  Doublet Negative 
+#3500     5984      830     5583     4431     1572     6535     1920 
+
+Donor3.microsporidian <- subset(Donor3_4.microsporidian, idents = c("D3-ctrl","D3-1dpi","D3-2dpi"))
+Donor4.microsporidian <- subset(Donor3_4.microsporidian, idents = c("D4-ctrl","D4-1dpi","D4-2dpi"))
+
+#Subset Donor 3: subset only infected cells that contain more than 2% of microsporidian transcripts from human transcripts
+#By doing this, we don't have to perform filtering out
+cell.use <- infected_cell_barcodes_and_clusters_D3$...1
+Donor3.microsporidian <- subset(Donor3.microsporidian, cells = cell.use)
+dim(Donor3.microsporidian)
+#1,925 cells and 2011 features
+
+#Add human clusters
+view(Donor3.microsporidian)
+clusters_D3 <- infected_cell_barcodes_and_clusters_D3$integrated_snn_res.0.2
+Donor3.microsporidian <- AddMetaData(Donor3.microsporidian, metadata = clusters_D3, col.name = "human_clusters")
+view(Donor3.microsporidian)
+
+#Subset Donor 4: subset only infected cells that contain more than 2% of microsporidian transcripts from human transcripts
+#By doing this, we don't have to perform filtering out
+cell.use <- infected_cell_barcodes_and_clusters_D4$...1
+Donor4.microsporidian <- subset(Donor4.microsporidian, cells = cell.use)
+dim(Donor4.microsporidian)
+#2,580 cells and 2011 features
+
+#Add human clusters
+view(Donor4.microsporidian)
+clusters_D4 <- infected_cell_barcodes_and_clusters_D4$integrated_snn_res.0.2
+Donor4.microsporidian <- AddMetaData(Donor4.microsporidian, metadata = clusters_D4, col.name = "human_clusters")
+view(Donor4.microsporidian)
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+remove(Donor3_4.microsporidian)
+remove(cell.use)
+
+#Assign donor name into each cell and store the data in 'Exp' slot
+Donor1.microsporidian$Exp <- "Donor1"
+Donor2.microsporidian$Exp <- "Donor2"
+Donor3.microsporidian$Exp <- "Donor3"
+Donor4.microsporidian$Exp <- "Donor4"
+
+#Perform integration and batch correction
+#First, select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = list(Donor1.microsporidian, Donor2.microsporidian, Donor3.microsporidian, Donor4.microsporidian), nfeatures = 3000)
+options(max.print = 100000)
+features
+
+#Identify anchors which will be used for integration
+combined.anchors <- FindIntegrationAnchors(object.list = list(Donor1.microsporidian, Donor2.microsporidian, Donor3.microsporidian, Donor4.microsporidian), anchor.features = features)
+
+combined.dataset <- IntegrateData(anchorset = combined.anchors)
+dim(combined.dataset)
+#6,908 cells with 1,990 features
+
+#Next, let's see the integration results
+DefaultAssay(combined.dataset) <- "integrated"
+combined.dataset <- ScaleData(combined.dataset, verbose = FALSE)
+combined.dataset <- RunPCA(combined.dataset)
+
+percent.pc <- combined.dataset@reductions$pca@stdev / sum(combined.dataset@reductions$pca@stdev) * 100
+cum.percent.pc <- cumsum(percent.pc)
+cum.percent.pc
+#[1]  11.71819  18.42599  23.05443  26.48881  29.75891  32.29309  34.73331  36.74845  38.69800  40.43277  42.08944  43.71448  45.32395  46.91712
+#[15]  48.47919  50.02434  51.54678  53.05754  54.56615  56.06987  57.56857  59.05778  60.54122  62.02402  63.50400  64.98250  66.45899  67.93477
+#[29]  69.40718  70.87786  72.34730  73.81530  75.28040  76.74429  78.20676  79.66846  81.12952  82.59016  84.04760  85.50437  86.95985  88.41404
+#[43]  89.86706  91.31896  92.76827  94.21630  95.66380  97.11060  98.55603 100.00000
+#PC1-44
+
+#Run UMAP
+set.seed(2022)
+combined.dataset <- RunUMAP(combined.dataset, dims = 1:44)
+Idents(combined.dataset) <- "Exp"
+
+DimPlot(combined.dataset, reduction = "umap", pt.size = 0.1, cols = "Set1")
+DimPlot(combined.dataset, reduction = "umap", pt.size = 0.1, split.by = "Exp", ncol = 4, cols = "Set1")
+FeaturePlot(combined.dataset, features = "percent.microsporidia")
+
+#First, we need to change the name of MULTI_ID for D3 and D4 from "D3-ctrl" to only "ctrl"
+combined.dataset$MULTI_ID <- recode_factor(combined.dataset$MULTI_ID, "D3-ctrl" = "ctrl", "D3-1dpi" = "1dpi", "D3-2dpi" = "2dpi", "D4-ctrl"  = "ctrl", "D4-1dpi" = "1dpi", "D4-2dpi" = "2dpi")
+#Then, order the timepoints
+combined.dataset$MULTI_ID <- factor(combined.dataset$MULTI_ID, levels = c("ctrl","3hpi","12hpi","1dpi","2dpi","3dpi"))
+
+DimPlot(combined.dataset, split.by = "MULTI_ID", cols = "Set1", pt.size = 0.1) + facet_wrap(~combined.dataset$MULTI_ID + combined.dataset$Exp, ncol = 6)
+DimPlot(combined.dataset, reduction = "umap", split.by = "MULTI_ID", ncol = 3, cols = "Set1", pt.size = 0.1) 
+
+#Perform the clustering
+set.seed(2022)
+Idents(combined.dataset) <- "orig.ident"
+combined.dataset <- FindNeighbors(combined.dataset, dims = 1:44)
+combined.dataset <- FindClusters(combined.dataset, resolution = 0.35)
+DimPlot(combined.dataset, pt.size = 0.1, label = T, label.size = 4)
+DimPlot(combined.dataset, split.by = "MULTI_ID", pt.size = 0.1) + facet_wrap(~combined.dataset$MULTI_ID + combined.dataset$Exp, ncol = 6)
+DimPlot(combined.dataset, group.by = "human_clusters", pt.size = 0.4, label.size = 5)
+DimPlot(combined.dataset, split.by = "MULTI_ID", pt.size = 0.1, ncol = 3)
+
+#From finding all markers, we found that infection (by looking at the gene expression pattern) goes from C3 > C4 > C3 > C1 > C0
+#Here we are going to change the order of the cluster to correlate with infection timepoints
+#The old order = C3 > C1 > C0 > C2 > 
+#The new order = C0 > C1 > C2 > C3 >
+
+#save old cluster system (RNA_snn_res.0.35) as a reference
+Idents(combined.dataset) <- "integrated_snn_res.0.35"
+combined.dataset[["Old.cluster"]] <- Idents(combined.dataset)
+view(combined.dataset)
+
+#Name new cluster system
+combined.dataset <- RenameIdents(object = combined.dataset, '3' = "0", '4' = "1", '2' ="2", '1' = "3", "0" = '4')
+combined.dataset[["New.cluster"]] <- Idents(combined.dataset)
+DimPlot(combined.dataset, label = T, pt.size = 0.4, label.size = 5)
+DimPlot(combined.dataset, pt.size = 0.1)
+
+combined.dataset@meta.data %>% group_by(integrated_snn_res.0.35, Exp) %>% count() %>% group_by(integrated_snn_res.0.35) %>% mutate(percent=100*n/sum(n)) %>% ungroup() %>% ggplot(aes(x=integrated_snn_res.0.35, y=percent, fill = Exp)) + geom_col() + ylab("Percent") + xlab("Clusters") + theme(text = element_text(size = 15, face = "plain")) + scale_fill_brewer(palette = "Set1")
+combined.dataset@meta.data %>% group_by(integrated_snn_res.0.35, MULTI_ID) %>% count() %>% group_by(integrated_snn_res.0.35) %>% mutate(percent=100*n/sum(n)) %>% ungroup() %>% ggplot(aes(x=integrated_snn_res.0.35, y=percent, fill = MULTI_ID)) + geom_col() + ylab("Percent") + xlab("Clusters") + theme(text = element_text(size = 15, face = "plain")) + scale_fill_brewer(palette = "Set1")
+FeaturePlot(combined.dataset, features = "percent.microsporidia", label = T)
+DimPlot(combined.dataset, split.by = "MULTI_ID", pt.size = 0.1) + facet_wrap(~combined.dataset$MULTI_ID, ncol = 3)
+
+DefaultAssay(combined.dataset) <- "RNA"
+RNA_allmarkers <- FindAllMarkers(combined.dataset, min.pct = 0.25)
+RNA_allmarkers.top10 <- RNA_allmarkers %>% group_by(cluster) %>% top_n(10, avg_log2FC)
+my_level <- c(0,1,2,3,4)
+combined.dataset@active.ident <- factor(x = combined.dataset@active.ident, levels = my_level)
+DotPlot(combined.dataset, features = unique(RNA_allmarkers.top10$gene)) + RotatedAxis() 
+
+DefaultAssay(combined.dataset) <- "integrated"
+DoHeatmap(combined.dataset, features = unique(RNA_allmarkers.top10$gene), group.bar = T, group.colors = c("white","white","white","white","white"), draw.lines = T, lines.width = 50) + scale_fill_gradientn(colours = rev(brewer.pal(n=9, name="RdBu")), na.value = "white") + theme(axis.text.y = element_text(size = 10))
+
+DefaultAssay(combined.dataset) <- "RNA"
+FeaturePlot(combined.dataset, features = c("Eint-010900", "Eint-011330", "Eint-061420", "Eint-070250", "Eint-030060","Eint-031080", "Eint-051130", "Eint-060290", "Eint-070470", "Eint-111480"), label = T, pt.size = 0.4, label.size = 5, ncol = 3)
+
+#Import Ricin prediction .csv and create heatmap
+ggplot(Ricin_Prediction_updated, aes(x = Cluster, y = Gene, fill= FC)) + 
+  geom_tile() +
+  scale_fill_gradient(low="white", high="royalblue3") +
+  theme(panel.border = element_rect(color = "black",
+                                    fill = NA,
+                                    linewidth = 1.0))
+Average_expression <- AverageExpression(object = combined.dataset,assays="RNA",slot="data")
+Average_expression
