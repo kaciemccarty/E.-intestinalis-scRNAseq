@@ -1,0 +1,354 @@
+#Processing strategies:
+#We will separate human transcripts from each donor.Then normalize the reads prior to integration of 4 donors
+
+#Load libraries
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(cowplot)
+
+#Donor 1:
+raw.data <- Read10X(data.dir="/YOUR DATA")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features, 10,100 cells
+raw.HTO.count <- raw.data$`Antibody Capture`  #4 features, 10,100 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs] 
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+row.names(raw.HTO.count) <- c('ctrl','1dpi','2dpi','3dpi')
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+#separate human transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor1.human <- subset(gene.hashtag[1:36601,])
+rownames(Donor1.human)
+Donor1.human <- NormalizeData(Donor1.human, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor1.human <- FindVariableFeatures(Donor1.human, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor1.human)
+Donor1.human <- ScaleData(Donor1.human, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor1.human[["HTO"]] <- CreateAssayObject(counts=raw.HTO.count)
+Donor1.human <- MULTIseqDemux(Donor1.human, assay = "HTO")
+table(Donor1.human$MULTI_ID)
+#1dpi     2dpi     3dpi     ctrl  Doublet Negative 
+#1559     1631     2136     2870      878     1026 
+Donor1.human <- subset(Donor1.human, idents = c("ctrl","1dpi","2dpi","3dpi"))
+dim(Donor1.human) #8,196 cells
+Donor1.human <- subset(Donor1.human, subset = nFeature_RNA > 500 & nFeature_RNA <6000 & nCount_RNA > 2000 & nCount_RNA < 40000 & percent.mt <20)
+dim(Donor1.human)
+#8,087 cells -> There are 10 cells lesser than processing human+microspordian transcripts together
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+
+#Donor 2:
+raw.data <- Read10X(data.dir = "/gpfs/data/bhabhaekiertlabs/home/jaroep01/MichaelPJ/scRNA-seq/Macrophage-Ei-rep2/processing/Macrophage-Ei-rep2/outs/filtered_feature_bc_matrix")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features and 12,279 cells
+raw.HTO.count <- raw.data$`Antibody Capture`  #4 features and 12,279 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs]
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+row.names(raw.HTO.count) <- c("ctrl","3hpi","12hpi","1dpi")
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+#separate human transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor2.human <- subset(gene.hashtag[1:36601,])
+rownames(Donor2.human)
+Donor2.human <- NormalizeData(Donor2.human, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor2.human <- FindVariableFeatures(Donor2.human, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor2.human)
+Donor2.human <- ScaleData(Donor2.human, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor2.human[["HTO"]] <- CreateAssayObject(counts = raw.HTO.count)
+Donor2.human <- MULTIseqDemux(Donor2.human, assay = "HTO")
+table(Donor2.human$MULTI_ID)
+#Had a lot of negative cells 
+remove(gene.hashtag)
+#Rerun normalization again
+Donor2.human <- NormalizeData(Donor2.human, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor2.human <- FindVariableFeatures(Donor2.human, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor2.human)
+Donor2.human <- ScaleData(Donor2.human, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor2.human[["HTO"]] <- CreateAssayObject(counts = raw.HTO.count)
+Donor2.human <- MULTIseqDemux(Donor2.human, assay = "HTO")
+table(Donor2.human$MULTI_ID)
+Donor2.human <- subset(Donor2.human, idents = c("ctrl","3hpi","12hpi","1dpi"))
+Donor2.human <- subset(Donor2.human, subset = nFeature_RNA > 500 & nFeature_RNA <6000 & nCount_RNA > 2200 & nCount_RNA < 35000 & percent.mt <20)
+dim(Donor2.human)
+#10,013 cells -> 49 cells less than combined transcripts
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+
+#Donor 3 and Donor 4
+raw.data <- Read10X(data.dir="/gpfs/data/bhabhaekiertlabs/home/jaroep01/MichaelPJ/scRNA-seq/GTC-PJ-6725/processing/GTC-PJ-6725/outs/filtered_feature_bc_matrix")
+raw.gene.count <- raw.data$`Gene Expression`  #38,612 features and 30,355 cells
+raw.HTO.count <- raw.data$`Antibody Capture`  #6 features and 30,355 cells
+joint.bcs <- intersect(colnames(raw.gene.count), colnames(raw.HTO.count))
+raw.gene.count <- raw.gene.count[,joint.bcs]
+raw.HTO.count <- as.matrix(raw.HTO.count[,joint.bcs])
+rownames(raw.HTO.count) <- c("D3_ctrl","D3_1dpi","D3_2dpi","D4_ctrl","D4_1dpi","D4_2dpi")
+gene.hashtag <- CreateSeuratObject(counts = raw.gene.count)
+percent.mt <- PercentageFeatureSet(gene.hashtag, pattern = "^MT-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.mt, col.name = "percent.mt")
+percent.microsporidia <- PercentageFeatureSet(gene.hashtag, pattern = "^Eint-")
+gene.hashtag <- AddMetaData(gene.hashtag, metadata = percent.microsporidia, col.name = "percent.microsporidia")
+#separate human transcripts
+options(max.print = 100000)
+rownames(gene.hashtag)
+#Human transcripts = 1:36601
+#Microsporidian transcripts = 36602:38612
+Donor3_4.human <- subset(gene.hashtag[1:36601,])
+rownames(Donor3_4.human)
+Donor3_4.human <- NormalizeData(Donor3_4.human, normalization.method = "LogNormalize", scale.factor = 10000)
+Donor3_4.human <- FindVariableFeatures(Donor3_4.human, selection.method = "vst", nfeatures = 3000)
+all.genes <- rownames(Donor3_4.human)
+Donor3_4.human <- ScaleData(Donor3_4.human, features = all.genes)
+raw.HTO.count <- NormalizeData(raw.HTO.count, normalization.method = "CLR")
+Donor3_4.human[["HTO"]] <- CreateAssayObject(counts = raw.HTO.count)
+Donor3_4.human <- MULTIseqDemux(Donor3_4.human, assay = "HTO")
+table(Donor3_4.human$MULTI_ID)
+#D3-1dpi  D3-2dpi  D3-ctrl  D4-1dpi  D4-2dpi  D4-ctrl  Doublet Negative 
+#3500     5984      830     5583     4431     1572     6535     1920 
+
+Donor3.human <- subset(Donor3_4.human, idents = c("D3-ctrl","D3-1dpi","D3-2dpi"))
+Donor4.human <- subset(Donor3_4.human, idents = c("D4-ctrl","D4-1dpi","D4-2dpi"))
+
+Donor3.human <- subset(Donor3.human, subset =  nFeature_RNA > 400 & nFeature_RNA < 4000 & nCount_RNA > 1000 & nCount_RNA < 20000 & percent.mt <20)
+dim(Donor3.human) 
+#10,206 cells remain from 10,254 cells of combined dataset
+
+Donor4.human <- subset(Donor4.human, subset =  nFeature_RNA > 400 & nFeature_RNA <3800 & nCount_RNA > 1000 & nCount_RNA < 15000 & percent.mt <20)
+dim(Donor4.human)
+#11,427 cells remain from 11,468 cells of combined dataset
+
+remove(raw.data)
+remove(gene.hashtag)
+remove(gene.singlet)
+remove(percent.mt)
+remove(raw.gene.count)
+remove(raw.HTO.count)
+remove(joint.bcs)
+remove(all.genes)
+remove(percent.microsporidia)
+remove(Donor3_4.human)
+
+#Assign donor name into each cell and store the data in 'Exp' slot
+Donor1.human$Exp <- "Donor1"
+Donor2.human$Exp <- "Donor2"
+Donor3.human$Exp <- "Donor3"
+Donor4.human$Exp <- "Donor4"
+
+#Perform integration and batch correction
+#First, select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = list(Donor1.human, Donor2.human, Donor3.human, Donor4.human), nfeatures = 3000)
+options(max.print = 100000)
+features
+
+#Identify anchors which will be used for integration
+combined.anchors <- FindIntegrationAnchors(object.list = list(Donor1.human, Donor2.human, Donor3.human, Donor4.human), anchor.features = features)
+
+remove(Donor1.human)
+remove(Donor2.human)
+remove(Donor3.human)
+remove(Donor4.human)
+
+#Combined datasets
+combined.dataset <- IntegrateData(anchorset = combined.anchors)
+dim(combined.dataset)
+#39,733 cells with 3,000 features from 39,881 of combined dataset
+
+#Next, let's see the integration results
+DefaultAssay(combined.dataset) <- "integrated"
+combined.dataset <- ScaleData(combined.dataset, verbose = FALSE)
+combined.dataset <- RunPCA(combined.dataset)
+percent.pc <- combined.dataset@reductions$pca@stdev / sum(combined.dataset@reductions$pca@stdev) * 100
+cum.percent.pc <- cumsum(percent.pc)
+cum.percent.pc
+#[1]   6.270388  11.294934  16.220203  20.707770  24.725748  28.112483  30.727803  33.211383
+#[9]  35.609745  37.914314  40.141590  42.304463  44.357861  46.355328  48.325793  50.210062
+#[17]  52.069857  53.833117  55.579620  57.260624  58.909239  60.547362  62.162328  63.739551
+#[25]  65.298021  66.844840  68.380343  69.899667  71.405720  72.896115  74.352516  75.795610
+#[33]  77.212149  78.625565  80.030782  81.429446  82.818673  84.195373  85.559847  86.911473
+#[41]  88.259771  89.600768  90.933117  92.248584  93.560822  94.858603  96.156175  97.443019
+#[49]  98.722512 100.000000
+#PC1-PC43
+
+#Run UMAP
+combined.dataset <- RunUMAP(combined.dataset, dims = 1:43)
+Idents(combined.dataset) <- "Exp"
+
+DimPlot(combined.dataset, reduction = "umap", pt.size = 0.1, cols = "Set1")
+DimPlot(combined.dataset, reduction = "umap", pt.size = 0.1, split.by = "Exp", ncol = 4, cols = "Set1")
+FeaturePlot(combined.dataset, features = "percent.microsporidia")
+
+#Perform the clustering
+set.seed(2022)
+Idents(combined.dataset) <- "orig.ident"
+combined.dataset <- FindNeighbors(combined.dataset, dims = 1:43)
+
+#Resolution 0.2
+combined.dataset <- FindClusters(combined.dataset, resolution = 0.2)
+png("PJSC20_Dimplot_0.2_FigureQ_NoLabel.png", width = 12, height = 10, units = "cm", res = 300)
+DimPlot(combined.dataset, pt.size = 0.1)
+dev.off()
+
+DimPlot(combined.dataset, pt.size = 0.1, split.by = "MULTI_ID")
+combined.dataset$MULTI_ID <- recode_factor(combined.dataset$MULTI_ID, "D3-ctrl" = "ctrl", "D3-1dpi" = "1dpi", "D3-2dpi" = "2dpi", "D4-ctrl"  = "ctrl", "D4-1dpi" = "1dpi", "D4-2dpi" = "2dpi")
+combined.dataset$MULTI_ID <- factor(combined.dataset$MULTI_ID, levels = c("ctrl","3hpi","12hpi","1dpi","2dpi","3dpi"))
+DimPlot(combined.dataset, split.by = "MULTI_ID", pt.size = 0.1) + facet_wrap(~combined.dataset$MULTI_ID + combined.dataset$Exp)
+FeaturePlot(combined.dataset, features = "percent.microsporidia", label = T)
+
+#Quantification of infected cells
+combined.dataset <- FindClusters(combined.dataset, resolution = 0.20)
+cells_with_microsporidia_2 <- subset(combined.dataset, subset = percent.microsporidia > 2)
+infected_cell_barcodes_2 <- colnames(cells_with_microsporidia_2)
+infected_cell_barcodes_2 <- data.frame(infected_cell_barcodes_2)
+dim(infected_cell_barcodes_2) #6,908 cells (148 cells reduced from the combined dataset)
+combined.dataset$infected_cell_2 <- ifelse(rownames(combined.dataset@meta.data) %in% infected_cell_barcodes_2$infected_cell_barcodes_2, "Yes", "No" )
+
+infected_cell_barcodes_and_clusters <- combined.dataset@meta.data[,c(5,10,11,13)]
+
+Idents(combined.dataset) <- "infected_cell_2"
+DimPlot(combined.dataset, pt.size = 0.1, label.size = 5, cols = c("gray","mediumblue"))
+
+combined.dataset@meta.data %>% group_by(integrated_snn_res.0.2, infected_cell_2) %>% count() %>% group_by(integrated_snn_res.0.2) %>% mutate(percent=100*n/sum(n)) %>% ungroup() %>% ggplot(aes(x=integrated_snn_res.0.2, y=percent, fill = infected_cell_2)) + geom_col() + ylab("Percent") + xlab("Clusters") + theme(text = element_text(size = 17, face = "plain")) + scale_fill_brewer(palette = "Greys")
+
+#Export infected cells barcodes and their human clusters
+infected_cell_barcodes_and_clusters <- combined.dataset@meta.data[,c(5,10,11,13)]
+write.csv(combined.dataset@meta.data, "infected_cell_barcodes_and_clusters.csv")
+
+install.packages("BiocManager")
+BiocManager::install("SingleR")
+BiocManager::install("celldex")
+BiocManager::install("scRNAseq")
+
+library(SingleR)
+library(celldex)
+library(scRNAseq)
+
+#Identify cell types from human primary cell atlas
+Human.primary.cells <- HumanPrimaryCellAtlasData()
+Human.primary.cells
+
+dataset.for.singleR <- GetAssayData(combined.dataset)
+dim(dataset.for.singleR)
+
+Predicted.dataset.main <- SingleR(test = dataset.for.singleR, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.main)
+Predicted.dataset.main
+
+table(Predicted.dataset.main$labels)
+
+Predicted.dataset <- SingleR(test = dataset.for.singleR, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+Predicted.dataset
+table(Predicted.dataset$labels)
+
+plotScoreHeatmap(Predicted.dataset)
+
+subset_C0 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 0)
+dim(subset_C0)
+singleR_C0 <- GetAssayData(subset_C0)
+Predicted.dataset.C0 <- SingleR(test = singleR_C0, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C0$labels)
+write.csv(table(Predicted.dataset.C0$labels), "Predicted.dataset.C0.csv")
+
+subset_C1 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 1)
+dim(subset_C1)
+singleR_C1 <- GetAssayData(subset_C1)
+Predicted.dataset.C1 <- SingleR(test = singleR_C1, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C1$labels)
+write.csv(table(Predicted.dataset.C1$labels), "Predicted.dataset.C1.csv")
+
+subset_C2 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 2)
+dim(subset_C2)
+singleR_C2 <- GetAssayData(subset_C2)
+Predicted.dataset.C2 <- SingleR(test = singleR_C2, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C2$labels)
+write.csv(table(Predicted.dataset.C2$labels), "Predicted.dataset.C2.csv")
+
+subset_C3 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 3)
+dim(subset_C3)
+singleR_C3 <- GetAssayData(subset_C3)
+Predicted.dataset.C3 <- SingleR(test = singleR_C3, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C3$labels)
+write.csv(table(Predicted.dataset.C3$labels), "Predicted.dataset.C3.csv")
+
+subset_C4 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 4)
+dim(subset_C4)
+singleR_C4 <- GetAssayData(subset_C4)
+Predicted.dataset.C4 <- SingleR(test = singleR_C4, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C4$labels)
+write.csv(table(Predicted.dataset.C4$labels), "Predicted.dataset.C4.csv")
+
+subset_C5 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 5)
+dim(subset_C5)
+singleR_C5 <- GetAssayData(subset_C5)
+Predicted.dataset.C5 <- SingleR(test = singleR_C5, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C5$labels)
+write.csv(table(Predicted.dataset.C5$labels), "Predicted.dataset.C5.csv")
+
+subset_C6 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 6)
+dim(subset_C6)
+singleR_C6 <- GetAssayData(subset_C6)
+Predicted.dataset.C6 <- SingleR(test = singleR_C6, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C6$labels)
+write.csv(table(Predicted.dataset.C6$labels), "Predicted.dataset.C6.csv")
+
+subset_C7 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 7)
+dim(subset_C7)
+singleR_C7 <- GetAssayData(subset_C7)
+Predicted.dataset.C7 <- SingleR(test = singleR_C7, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C7$labels)
+write.csv(table(Predicted.dataset.C7$labels), "Predicted.dataset.C7.csv")
+
+subset_C8 <- subset(combined.dataset, subset = integrated_snn_res.0.2 == 8)
+dim(subset_C8)
+singleR_C8 <- GetAssayData(subset_C8)
+Predicted.dataset.C8 <- SingleR(test = singleR_C8, ref = Human.primary.cells, assay.type.test = 1, labels = Human.primary.cells$label.fine)
+table(Predicted.dataset.C8$labels)
+write.csv(table(Predicted.dataset.C8$labels), "Predicted.dataset.C8.csv")
+
+ggplot(All_Clusters_Final, aes(X, Y, fill= Percent)) + 
+  geom_tile() +
+  scale_fill_gradient(low="white", high="gray8") +
+  theme(panel.border = element_rect(color = "blue",
+                                    fill = NA,
+                                    linewidth = 1.5))
+
+DefaultAssay(combined.dataset) <- "RNA"
+RNA_allmarkers <- FindAllMarkers(combined.dataset, min.pct = 0.25)
+write.csv(RNA_allmarkers, "RNA_allmarkers.csv")
+
+RNA_allmarkers.top10 <- RNA_allmarkers %>% group_by(cluster) %>% top_n(10, avg_log2FC)
+DotPlot(combined.dataset, features = unique(RNA_allmarkers.top10$gene), cols = "RdBu") + RotatedAxis()
+
+
+
+
